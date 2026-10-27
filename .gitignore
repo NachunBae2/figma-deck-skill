@@ -1,0 +1,9 @@
+exports/
+cache/
+jobs/
+scripts/*/
+node_modules/
+.maestro/
+.env
+*.pdf
+*.png
