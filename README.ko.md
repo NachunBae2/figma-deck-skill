@@ -8,7 +8,7 @@ Claude Code 로 Figma 안에서 장표를 만든다: Aside 브라우저 + Figma 
 - **장표는 Figma 안에 남는다.** 이미 있는 양식 프레임을 Figma 파일 안에서 복제해 채우므로 글꼴·색·배치가 그대로 유지되고, 결과를 사람이 계속 고칠 수 있다.
 - **플러그인·MCP 서버 없이.** Figma 웹 편집기는 페이지 스크립트에 Plugin API 객체 `figma` 를 그대로 열어 준다. `bin/figma-run.mjs` 가 Aside 브라우저로 파일을 열고 작은 스크립트를 돌린다 — 읽기·복제·글 수정·이미지 교체·내보내기.
 - **도구만이 아니라 방법.** Claude Code 스킬 2개: `deck-method`(그리기 전에 제목 문장부터, 장마다 결론 하나, 차트 고르기, 두 가지 검토), `figma-deck`(도구 쓰는 법).
-- **두 가지 검토.** 기계 형식 검사(`scripts/lint-format.js`: 여백·10pt 미만·테마 밖 색·겹침 등)와 문맥 없는 Codex 세션의 독립 논리 검토(`bin/review-logic.sh`).
+- **두 가지 검토.** 기계 형식 검사(`scripts/lint-format.js`: 여백·10pt 미만·테마 밖 색·겹침 등)와 독립 논리 검토(`bin/review-logic.sh` 가 작성 문맥 없는 새 Codex 세션에 묻는다. Codex 가 없으면 장표를 만들지 않은 사람에게 묻는다).
 
 ## 필요한 것
 | | 쓰이는 곳 | 메모 |
@@ -23,10 +23,9 @@ Claude Code 로 Figma 안에서 장표를 만든다: Aside 브라우저 + Figma 
 
 **Aside 에 대해.** Aside 는 외부 업체의 Chromium 기반 macOS AI 브라우저이고, `aside` CLI 에 Playwright 식 JavaScript REPL 인 `aside repl` 이 있다. 업체 안내대로 앱과 CLI 를 설치하고 앱을 연 뒤 확인한다:
 ```sh
-aside --version
-aside repl "const p = await openTab('https://www.figma.com'); console.log(await p.title())"
+aside --version && aside repl --help
 ```
-이 도구는 `aside repl` 만 쓴다(`openTab`, `page.evaluate`, `~/.aside/u/<계정>/` 아래 파일의 `fs.readFile`). Aside 계정이 `u0` 가 아니면 `ASIDE_PAYLOAD_DIR` 를 바꾼다(`.env.example`).
+실제 첫 브라우저 호출은 아래 '5분 만에 첫 장표'의 2번이다(공용 잠금을 거친다). 이 도구는 `aside repl` 만 쓴다(`openTab`, `page.evaluate`, `~/.aside/u/<계정>/` 아래 파일의 `fs.readFile`). Aside 계정이 `u0` 가 아니면 `ASIDE_PAYLOAD_DIR` 를 바꾼다(`.env.example`).
 
 **Aside 가 없으면** REST 쪽만 쓸 수 있다 — `figma-api.mjs`(목록·노드 읽기·PNG/PDF 내보내기)와 `deck-pdf.sh`. 장표 편집과 `lint-format.js` 등 스크립트 실행은 안 된다.
 
@@ -77,8 +76,9 @@ node bin/figma-run.mjs scripts/lint-format.js --arg frame=<슬라이드나 부�
 bin/review-logic.sh my-deck $FIGMA_FILE_KEY <슬라이드id,슬라이드id,...>
 
 # 6. PDF 하나로
-node bin/figma-api.mjs export $FIGMA_FILE_KEY <슬라이드id,...> --format pdf --out exports/my-deck
-bin/deck-pdf.sh exports/my-deck/*.pdf -o exports/my-deck.pdf   # 합본은 장별 폴더 밖에
+rm -rf exports/my-deck/slides    # 매번 빈 폴더로: 이름이 바뀌거나 빠진 장이 남지 않게
+node bin/figma-api.mjs export $FIGMA_FILE_KEY <슬라이드id,...> --format pdf --out exports/my-deck/slides
+bin/deck-pdf.sh exports/my-deck/slides/*.pdf -o exports/my-deck/deck.pdf
 ```
 Claude Code 에서는 "이 브리프로 Figma 에 제안서 6장 만들어" 라고만 해도 된다. 스킬이 계획부터 쓰게 하고 위 명령을 쓴다. 끝난 작업은 [examples/REPORT.md](examples/REPORT.md) 모양이 된다.
 
@@ -89,7 +89,7 @@ Claude Code 에서는 "이 브리프로 Figma 에 제안서 6장 만들어" 라�
 - 도구는 토큰을 출력하지 않는다. `.env` 는 git 에서 제외돼 있다.
 - 스크립트는 **복제본**(`<job> NN · 제목`)만 고친다. 원본 프레임은 수정·이동·삭제하지 않는 것이 규칙이다.
 - `codex-task.sh` 는 기본으로 Codex 를 `danger-full-access` 로 돌린다. `figma-run.mjs` 가 Aside 를 띄우고 레포 밖에 잠금·payload 파일을 써야 하기 때문이다. 바꾸려면 `CODEX_SANDBOX`.
-- `review-logic.sh` 는 슬라이드 PNG 만 든 빈 임시 폴더에서 Codex 를 읽기 전용으로 돌린다. 검토자는 계획·스크립트를 볼 수 없다(본인의 전역 Codex 설정은 그대로 적용된다).
+- `review-logic.sh` 는 슬라이드 PNG 만 든 빈 임시 폴더에서 새 Codex 세션을 읽기 전용으로 돌린다. 계획·스크립트를 건네지 않는다는 뜻이지 읽기 차단(샌드박스)은 아니며, 본인의 전역 Codex 설정은 그대로 적용된다.
 
 더 보기: [docs/method.ko.md](docs/method.ko.md)(방법론 원문) · [docs/plugin-api-tips.md](docs/plugin-api-tips.md) · [docs/troubleshooting.md](docs/troubleshooting.md)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# what:  Logic review (docs/method.md §3): give slide PNGs to a fresh Codex session that sees only the images, and collect findings only (6 questions + 2 chart questions).
+# what:  Logic review (docs/method.md §3): give slide PNGs to a fresh Codex session without the authoring context, and collect findings only (6 questions + 2 chart questions).
 # usage: bin/review-logic.sh <job> <fileKey> <slide-id,slide-id,...>     -> jobs/<job>/logic-review.md (the author adds accept/reject/hold)
 # env:   CODEX_MODEL (optional; empty = Codex default), CODEX_EFFORT (default high), NO_EXPORT=1 (use the PNGs already in jobs/<job>/review-png/ instead of a REST export)
 set -eo pipefail
@@ -15,7 +15,7 @@ if [ -z "$NO_EXPORT" ]; then
   rm -f "$PNG"/*.png
   node "$R/bin/figma-api.mjs" export "$KEY" "$IDS" --format png --scale 1 --out "$PNG" >/dev/null
 fi
-# The reviewer runs in an empty temp directory holding only the PNGs, so it cannot read the plan, the scripts or this repo's AGENTS.md.
+# The reviewer starts in an empty temp directory holding only the PNGs, so no plan, script or AGENTS.md is handed to it. (This is not a read sandbox.)
 WORK=$(mktemp -d); trap 'rm -rf "$WORK"' EXIT
 IMGS=(); for f in "$PNG"/*.png; do [ -f "$f" ] && cp "$f" "$WORK/" && IMGS+=(-i "$WORK/$(basename "$f")"); done
 [ ${#IMGS[@]} -gt 0 ] || { echo "no PNGs in $PNG"; exit 1; }

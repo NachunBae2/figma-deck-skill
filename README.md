@@ -8,7 +8,7 @@ Make slide decks in Figma with Claude Code: Aside browser + Figma Plugin API + C
 - **Decks stay in Figma.** Slides are built by cloning your existing template frames inside a Figma file, so your fonts, colours and layout are kept and people can keep editing the result.
 - **No plugin, no MCP server.** The Figma web editor exposes the Plugin API object `figma` to page scripts. `bin/figma-run.mjs` opens the file in the [Aside](#requirements) browser and runs a small script there — read, clone, edit text, swap images, export.
 - **A method, not just tools.** Two Claude Code skills: `deck-method` (plan titles before drawing, one conclusion per slide, chart choice, two kinds of review) and `figma-deck` (how to drive the tools).
-- **Two reviews.** A machine format check (`scripts/lint-format.js`: margins, <10pt text, off-theme colours, overlaps …) and an independent logic review by a context-free Codex session (`bin/review-logic.sh`).
+- **Two reviews.** A machine format check (`scripts/lint-format.js`: margins, <10pt text, off-theme colours, overlaps …) and an independent logic review (`bin/review-logic.sh` asks a fresh Codex session without the authoring context; without Codex, ask a person who did not make the deck).
 
 ## Requirements
 | | needed for | notes |
@@ -23,10 +23,9 @@ Make slide decks in Figma with Claude Code: Aside browser + Figma Plugin API + C
 
 **About Aside.** Aside is a third-party, Chromium-based AI browser for macOS whose `aside` CLI includes `aside repl`, a Playwright-style JavaScript REPL. Install the desktop app and its CLI following the vendor's instructions, open the app, then check:
 ```sh
-aside --version
-aside repl "const p = await openTab('https://www.figma.com'); console.log(await p.title())"
+aside --version && aside repl --help
 ```
-This toolkit only uses `aside repl` (`openTab`, `page.evaluate`, and `fs.readFile` of files under `~/.aside/u/<account>/`). If your Aside account is not `u0`, set `ASIDE_PAYLOAD_DIR` (see `.env.example`).
+The first real browser call is step 2 of the quickstart below (it goes through the shared lock). This toolkit only uses `aside repl` (`openTab`, `page.evaluate`, and `fs.readFile` of files under `~/.aside/u/<account>/`). If your Aside account is not `u0`, set `ASIDE_PAYLOAD_DIR` (see `.env.example`).
 
 **Without Aside** you can still use the REST side — `figma-api.mjs` (inventory, node dumps, PNG/PDF export) and `deck-pdf.sh` — but you cannot edit slides, and `lint-format.js`/other scripts cannot run.
 
@@ -77,8 +76,9 @@ node bin/figma-run.mjs scripts/lint-format.js --arg frame=<slide-or-parent-id> -
 bin/review-logic.sh my-deck $FIGMA_FILE_KEY <slide-id,slide-id,...>
 
 # 6. Export one PDF
-node bin/figma-api.mjs export $FIGMA_FILE_KEY <slide-id,...> --format pdf --out exports/my-deck
-bin/deck-pdf.sh exports/my-deck/*.pdf -o exports/my-deck.pdf   # merged file outside the per-slide folder
+rm -rf exports/my-deck/slides    # fresh folder, so renamed or removed slides do not linger
+node bin/figma-api.mjs export $FIGMA_FILE_KEY <slide-id,...> --format pdf --out exports/my-deck/slides
+bin/deck-pdf.sh exports/my-deck/slides/*.pdf -o exports/my-deck/deck.pdf
 ```
 In Claude Code you can simply ask "make a 6-slide proposal in Figma from this brief" — the skills tell it to plan first, then use these commands. A finished job looks like [examples/REPORT.md](examples/REPORT.md).
 
@@ -89,7 +89,7 @@ In Claude Code you can simply ask "make a 6-slide proposal in Figma from this br
 | `node bin/figma-api.mjs me \| projects \| files \| file \| nodes \| inventory \| export` | Figma REST (read-only): inventory, node JSON, PNG/JPG/SVG/PDF export |
 | `bin/deck-pdf.sh <files...> -o out.pdf` | Merge exported PNG/PDF slides into one PDF |
 | `bin/codex-task.sh "<job>" [job-name]` | Delegate one build to Codex → `jobs/<job>/REPORT.md` |
-| `bin/review-logic.sh <job> <key> <ids>` | Logic review by a context-free Codex session → `jobs/<job>/logic-review.md` |
+| `bin/review-logic.sh <job> <key> <ids>` | Logic review by a fresh Codex session without the authoring context → `jobs/<job>/logic-review.md` |
 | `bin/aside-js.sh <file.js>` | Plain `aside repl` with the shared lock (Figma pages outside the editor) |
 | `bin/aside-lock.mjs` | The shared Aside lock used by figma-run.mjs and aside-js.sh |
 | `node bin/save-pngs.mjs <png.json> <dir>` | Write PNGs returned by `scripts/export-png.js` to files |
@@ -118,7 +118,7 @@ Work folders `jobs/`, `cache/`, `exports/` are created on demand and git-ignored
 - Tools never print the token. Keep `.env` out of git (it is ignored).
 - Scripts only edit **copies** (`<job> NN · title`); source frames are never edited, moved or deleted by the tools' rules.
 - `codex-task.sh` runs Codex with `danger-full-access` by default, because `figma-run.mjs` must start the Aside browser and write its lock and payload outside the repo. Set `CODEX_SANDBOX` to change it.
-- `review-logic.sh` runs Codex read-only in an empty temporary folder that holds only the slide PNGs, so the reviewer cannot see the plan or the scripts. (Your global Codex settings still apply.)
+- `review-logic.sh` starts a fresh, read-only Codex session in an empty temporary folder that holds only the slide PNGs: it is not handed the plan or the scripts. This is not a read sandbox, and your global Codex settings still apply.
 
 More: [docs/method.md](docs/method.md) · [docs/plugin-api-tips.md](docs/plugin-api-tips.md) · [docs/troubleshooting.md](docs/troubleshooting.md)
 

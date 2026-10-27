@@ -1,6 +1,6 @@
 // what:  Make headlines one line that ends at the right edge of the body area: auto width, font size scaled to the available width (capped), and an optional subtitle moved just below.
 // usage: node bin/figma-run.mjs scripts/fit-headline.js --arg ids=12:3,12:9 --arg right=1824 [--arg max=52] [--arg sub=Sub] [--arg gap=14]
-// env:   none (args: ids = headline TEXT node ids; right = x of the body area's right edge, measured from the slide's left edge; max = largest font size in px; sub = name of the subtitle TEXT node in the same parent; gap = px between headline and subtitle)
+// env:   none (args: ids = headline TEXT node ids; right = x of the body area's right edge, measured from the slide's left edge; max = largest font size in px; sub = name of the subtitle TEXT node next to the headline (same parent); gap = px between headline and subtitle)
 const ids = (args.ids || '').split(',').map((s) => s.trim()).filter(Boolean);
 if (!ids.length) throw new Error('pass --arg ids=<text node id,...>');
 const right = Number(args.right || 1824), maxSize = Number(args.max || 52), gap = Number(args.gap || 14), subName = args.sub || 'Sub';
@@ -21,7 +21,7 @@ for (const id of ids) {
   t.textAutoResize = 'WIDTH_AND_HEIGHT';
   t.fontSize = Math.min(maxSize, Math.floor(t.fontSize * avail / t.width * 10) / 10);
   while (t.width > avail && t.fontSize > 1) t.fontSize = t.fontSize - 0.5;
-  const sub = t.parent.findOne((n) => n.type === 'TEXT' && n.name === subName && n.id !== id);
+  const sub = t.parent.children.find((n) => n.type === 'TEXT' && n.name === subName && n.id !== id); // direct sibling only
   if (sub) sub.y = Math.round(t.y + t.height + gap);
   out.push({ id, slide: slide.name, size: t.fontSize, width: Math.round(t.width), available: Math.round(avail), tooShort: t.fontSize >= maxSize && t.width < avail * 0.9, subY: sub ? sub.y : null });
 }

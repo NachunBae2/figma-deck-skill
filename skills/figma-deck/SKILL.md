@@ -22,7 +22,7 @@ Toolkit location: the clone of this repository, referred to as `$FIGMA_DECK_HOME
 | `bin/deck-pdf.sh <pdf/png...> -o out.pdf` | Merge exported slides into one PDF. |
 | `bin/codex-task.sh "<job>" [job-name]` | Delegate one build to Codex → `jobs/<job>/REPORT.md`. Optional. |
 | `node bin/figma-run.mjs scripts/lint-format.js --arg frame=<id>` | Format check (machine). |
-| `bin/review-logic.sh <job> <key> <ids>` | Logic review by a context-free Codex session (findings only). Optional. |
+| `bin/review-logic.sh <job> <key> <ids>` | Logic review by a fresh Codex session without the authoring context (findings only). The review itself is required; Codex is optional — without it, a person who did not make the deck answers the same questions. |
 | `scripts/inventory.js`, `scripts/fit-headline.js`, `scripts/scan-words.js`, `scripts/strip-name-tag.js` | Inventory, one-line headlines, banned-word scan, remove status tags from a job's copy names. |
 | `scripts/export-png.js` + `node bin/save-pngs.mjs <json> <dir>` | PNG export inside the editor when the REST export is rate-limited (429). |
 | `bin/aside-js.sh <file.js>` | Plain `aside repl` with the shared lock, for Figma pages outside the editor. |
@@ -31,8 +31,8 @@ Toolkit location: the clone of this repository, referred to as `$FIGMA_DECK_HOME
 1. **Plan first** (deck-method): write `jobs/<job>/PLAN.md` — goal and reader, one title sentence per slide, one-line relationship sketch per slide — and get it agreed by the requester. No drawing before the list of titles.
 2. **Inventory**: `node bin/figma-api.mjs inventory $FIGMA_FILE_KEY` (or `scripts/inventory.js` without a token) to find the template frames and their ids.
 3. **Read** the source frames with a read-only script; **clone** them to the right of the source as `<job> NN · title`; **fill** only the copies. Never edit, move or delete source frames; deletion is done by a person in Figma.
-4. **Check**: `scripts/lint-format.js` until 0 violations; `scripts/scan-words.js` for client decks; `bin/review-logic.sh` and record accept / reject / hold in REPORT.md; add findings to `docs/errata.md`.
-5. **Export**: `node bin/figma-api.mjs export $FIGMA_FILE_KEY <ids> --format pdf --out exports/<job>` → `bin/deck-pdf.sh exports/<job>/*.pdf -o exports/<job>.pdf`.
+4. **Check**: `scripts/lint-format.js` until 0 violations; `scripts/scan-words.js` for client decks; logic review (`bin/review-logic.sh`, or a person who did not make the deck) and record accept / reject / hold in REPORT.md; add findings to `docs/errata.md`.
+5. **Export** into a fresh folder: `rm -rf exports/<job>/slides && node bin/figma-api.mjs export $FIGMA_FILE_KEY <ids> --format pdf --out exports/<job>/slides` → `bin/deck-pdf.sh exports/<job>/slides/*.pdf -o exports/<job>/deck.pdf`.
 
 ## Cautions
 - Load before editing: `page.loadAsync()`, `figma.loadFontAsync(fontName)`. Pass images with `--asset`, never inline base64.

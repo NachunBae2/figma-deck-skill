@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // what:  Figma REST client (read-only): list projects/files, dump nodes, write a slide inventory, export PNG/JPG/SVG/PDF.
-// usage: node bin/figma-api.mjs me | projects [teamId] | files <projectId> | file <key> [--depth N] | nodes <key> <id,id> | inventory <key> [--out dir] | export <key> <id,id,...> [--format png|jpg|svg|pdf] [--scale N] [--out dir]
+// usage: node bin/figma-api.mjs me | projects [teamId] | files <projectId> | file <key> [--depth N] | nodes <key> <id,id> | inventory <key> [--out dir] | export <key> <id,id,...> [--format png|jpg|svg|pdf] [--scale N] [--out dir]   (export into an empty folder per run)
 // env:   FIGMA_TOKEN (personal access token) or, on macOS, FIGMA_KEYCHAIN_SERVICE [+ FIGMA_KEYCHAIN_ACCOUNT]; FIGMA_TEAM_ID (default team for `projects`). The token is never printed.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -88,6 +88,7 @@ else if (cmd === 'inventory') {
   const names = {};
   try { const n = await api(`/files/${a1}/nodes?ids=${encodeURIComponent(ids.join(','))}&depth=1`); for (const [id, v] of Object.entries(n.nodes)) names[id] = v?.document?.name || id; } catch {}
   const written = []; const returned = new Set(); let failed = 0;
+  const padWidth = Math.max(2, String(ids.length).length); // keeps file-name order = slide order
   for (let i = 0; i < ids.length; i += 20) {
     const chunk = ids.slice(i, i + 20);
     const r = await api(`/images/${a1}?ids=${encodeURIComponent(chunk.join(','))}&format=${format}${format === 'pdf' || format === 'svg' ? '' : `&scale=${scale}`}`);
@@ -97,7 +98,7 @@ else if (cmd === 'inventory') {
       const dl = await fetch(u);
       if (!dl.ok) { console.error(`download failed: ${id} (${dl.status})`); failed++; continue; }
       const buf = Buffer.from(await dl.arrayBuffer());
-      const idx = String(ids.indexOf(id) + 1).padStart(2, '0');
+      const idx = String(ids.indexOf(id) + 1).padStart(padWidth, '0');
       const fp = path.join(dir, `${idx}-${safeName(names[id] || id)}.${format}`);
       fs.writeFileSync(fp, buf); written.push(fp);
     }

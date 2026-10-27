@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # what:  Merge slide exports (PNG/JPG/PDF, in the given order) into one PDF.
-# usage: bin/deck-pdf.sh <file...> -o out.pdf
+# usage: bin/deck-pdf.sh <file...> -o out.pdf      (pass the files of one export run, e.g. exports/<job>/slides/*.pdf)
 # env:   none. Needs pdfunite + pdfinfo (poppler); images are converted with sips (macOS) or ImageMagick (magick).
 set -e
 OUT=""; FILES=()
