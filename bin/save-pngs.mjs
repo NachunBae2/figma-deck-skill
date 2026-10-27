@@ -12,18 +12,27 @@ if (!src || !dir) { console.error(USAGE); process.exit(2); }
 const data = JSON.parse(fs.readFileSync(src, 'utf8'));
 if (data && data.ok === false) { console.error(`figma-run reported an error, nothing written: ${data.error}`); process.exit(1); }
 const pngs = data && typeof data === 'object' && 'result' in data ? data.result : data;
-const valid = pngs && typeof pngs === 'object' && !Array.isArray(pngs) && Object.values(pngs).every((v) => v === null || (v && typeof v.png === 'string'));
-if (!valid) { console.error(`not export-png.js output, nothing written: ${src}`); process.exit(1); }
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const bad = (why) => { console.error(`not export-png.js output (${why}), nothing written: ${src}`); process.exit(1); };
+if (!pngs || typeof pngs !== 'object' || Array.isArray(pngs)) bad('no { id: { name, png } } map');
+// Decode and check every image before touching the output folder.
+const decoded = Object.entries(pngs).map(([id, v]) => {
+  if (v === null) return [id, null];
+  if (!v || typeof v.png !== 'string' || (v.name !== undefined && typeof v.name !== 'string')) bad(`bad entry ${id}`);
+  const buf = Buffer.from(v.png, 'base64');
+  if (!buf.subarray(0, 8).equals(PNG_SIGNATURE)) bad(`entry ${id} is not a PNG`);
+  return [id, { name: v.name || id, buf }];
+});
 const safeName = (s) => s.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80);
 fs.mkdirSync(dir, { recursive: true });
 for (const f of fs.readdirSync(dir)) if (/^\d+-.*\.png$/.test(f)) fs.rmSync(path.join(dir, f)); // stale slides from an earlier run
-const entries = Object.entries(pngs || {});
+const entries = decoded;
 const padWidth = Math.max(2, String(entries.length).length);
 let missing = 0;
 entries.forEach(([id, v], i) => {
   if (!v) { console.error(`not found: ${id}`); missing++; return; }
-  const fp = path.join(dir, `${String(i + 1).padStart(padWidth, '0')}-${safeName(v.name || id)}.png`);
-  fs.writeFileSync(fp, Buffer.from(v.png, 'base64'));
+  const fp = path.join(dir, `${String(i + 1).padStart(padWidth, '0')}-${safeName(v.name)}.png`);
+  fs.writeFileSync(fp, v.buf);
   console.log(fp);
 });
 if (missing) process.exitCode = 1;
