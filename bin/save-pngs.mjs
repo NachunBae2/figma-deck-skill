@@ -13,6 +13,9 @@ const data = JSON.parse(fs.readFileSync(src, 'utf8'));
 if (data && data.ok === false) { console.error(`figma-run reported an error, nothing written: ${data.error}`); process.exit(1); }
 const pngs = data && typeof data === 'object' && 'result' in data ? data.result : data;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const PNG_END = Buffer.from([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]); // IEND chunk
+// A complete PNG: signature, IHDR as the first chunk, IEND at the end.
+const isPng = (b) => b.length > 8 + 25 + 12 && b.subarray(0, 8).equals(PNG_SIGNATURE) && b.toString('latin1', 12, 16) === 'IHDR' && b.subarray(-12).equals(PNG_END);
 const bad = (why) => { console.error(`not export-png.js output (${why}), nothing written: ${src}`); process.exit(1); };
 if (!pngs || typeof pngs !== 'object' || Array.isArray(pngs)) bad('no { id: { name, png } } map');
 // Decode and check every image before touching the output folder.
@@ -20,9 +23,10 @@ const decoded = Object.entries(pngs).map(([id, v]) => {
   if (v === null) return [id, null];
   if (!v || typeof v.png !== 'string' || (v.name !== undefined && typeof v.name !== 'string')) bad(`bad entry ${id}`);
   const buf = Buffer.from(v.png, 'base64');
-  if (!buf.subarray(0, 8).equals(PNG_SIGNATURE)) bad(`entry ${id} is not a PNG`);
+  if (!isPng(buf)) bad(`entry ${id} is not a complete PNG`);
   return [id, { name: v.name || id, buf }];
 });
+if (!decoded.some(([, v]) => v)) bad('no images');
 const safeName = (s) => s.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80);
 fs.mkdirSync(dir, { recursive: true });
 for (const f of fs.readdirSync(dir)) if (/^\d+-.*\.png$/.test(f)) fs.rmSync(path.join(dir, f)); // stale slides from an earlier run

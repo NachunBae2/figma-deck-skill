@@ -26,7 +26,7 @@ Follow `docs/method.md` (skill `deck-method`): goal & reader → one title sente
 - Invent numbers or promises. Use what the brief gives; mark the rest `[needs check]`.
 
 ## Conventions for contributors
-- File, command and option names: English kebab-case (`fit-headline.js`, `--format`). Functions and variables inside JS and shell scripts: camelCase; environment variables, shell globals and module-level constants (`USAGE`, `ROOT`): UPPER_SNAKE_CASE. One responsibility per file.
+- File, command and option names: English kebab-case (`fit-headline.js`, `--format`). Functions and variables inside JS and shell scripts: camelCase; environment variables, shell globals and module-level constants (`USAGE`, `ROOT`): UPPER_SNAKE_CASE; short loop variables and counters (`f`, `i`, `n`) may stay lowercase. One responsibility per file.
 - Job names: lowercase letters, digits and dashes (`my-deck`); the tools refuse others.
 - Every file in `bin/` and `scripts/` starts with three header lines: `what:` / `usage:` / `env:`.
 - Shell scripts are bash (`#!/usr/bin/env bash`), node CLIs are ESM `.mjs` for Node 20+.
