@@ -15,7 +15,19 @@ if (data && data.ok === false) { console.error(`figma-run reported an error, not
 const pngs = data && typeof data === 'object' && 'result' in data ? data.result : data;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PNG_END = Buffer.from([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]); // IEND chunk
-// A complete PNG: signature, IHDR first, chunks that fit exactly, IEND last, and IDAT data that inflates.
+// Raster check for non-interlaced images: inflated size = height x (1 filter byte + row bytes), each filter byte 0-4.
+function rasterOk(b, idat) {
+  const width = b.readUInt32BE(16), height = b.readUInt32BE(20), bitDepth = b[24], colorType = b[25], interlace = b[28];
+  const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[colorType];
+  if (!channels || !width || !height) return false;
+  let raw; try { raw = zlib.inflateSync(idat); } catch { return false; }
+  if (interlace) return raw.length > 0; // Adam7 layout is not checked byte by byte
+  const rowBytes = Math.ceil((width * channels * bitDepth) / 8);
+  if (raw.length !== height * (rowBytes + 1)) return false;
+  for (let y = 0; y < height; y++) if (raw[y * (rowBytes + 1)] > 4) return false;
+  return true;
+}
+// A complete PNG: signature, IHDR first, chunks that fit exactly, IEND last, and raster data that matches the header.
 function isPng(b) {
   if (b.length < 8 + 25 + 12 || !b.subarray(0, 8).equals(PNG_SIGNATURE) || b.toString('latin1', 12, 16) !== 'IHDR' || !b.subarray(-12).equals(PNG_END)) return false;
   const idat = [];
@@ -25,7 +37,7 @@ function isPng(b) {
     if (at + 12 + len > b.length) return false;
     if (type === 'IDAT') idat.push(b.subarray(at + 8, at + 8 + len));
     at += 12 + len;
-    if (type === 'IEND') return at === b.length && idat.length > 0 && (() => { try { return zlib.inflateSync(Buffer.concat(idat)).length > 0; } catch { return false; } })();
+    if (type === 'IEND') return at === b.length && idat.length > 0 && rasterOk(b, Buffer.concat(idat));
   }
   return false;
 }
