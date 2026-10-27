@@ -36,5 +36,5 @@ Source template frames were cloned; no source frame was edited, moved or deleted
 ## Export
 ```
 node bin/figma-api.mjs export $FIGMA_FILE_KEY 101:2,101:40,101:77,101:120,101:161,101:190 --format pdf --out exports/sample-proposal
-bin/deck-pdf.sh exports/sample-proposal/*.pdf -o exports/sample-proposal/sample-proposal.pdf
+bin/deck-pdf.sh exports/sample-proposal/*.pdf -o exports/sample-proposal.pdf
 ```

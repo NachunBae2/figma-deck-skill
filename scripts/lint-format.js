@@ -1,6 +1,7 @@
 // what:  Format check (machine side of docs/method.md §3) for the slides in one frame: text outside the margin guide, text under 10pt, hard-coded HEX colours outside the theme, white on orange, full-image slides, image tables/charts, overlaps, overflow candidates.
 // usage: node bin/figma-run.mjs scripts/lint-format.js --node 42:2 --arg frame=42:2 [--arg margin=0.05] [--arg minpt=10] [--json jobs/<job>/lint.json]
 // env:   none (args: frame = slide or parent frame id, default = current selection or first frame; margin = guide ratio; minpt = minimum body size). Header/footer bands are excluded.
+// note:  known limits (kept from the original rules): the margin rule reports text only; white-on-orange looks at shapes under the text, not the slide's own fill.
 const frameId = args.frame;
 const marginRatio = Number(args.margin || 0.05);
 const minPt = Number(args.minpt || 10);

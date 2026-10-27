@@ -6,15 +6,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { takeLock, dropLock } from './aside-lock.mjs';
 
 const USAGE = `usage: node bin/figma-run.mjs <script.js> [--file key] [--node id] [--json out.json] [--asset name=path ...] [--arg key=value ...] [--wait sec]
   The script is the body of an async function with globals figma, assets (name -> Uint8Array), args (name -> string).
   Its return value is printed as JSON (and written to --json). One Aside call is allowed at a time: a shared lock
-  file serialises runs (waits up to 20 min for another holder; locks older than 15 min are considered stale).
+  file serialises runs (waits up to 20 min for another run; locks older than 15 min are considered stale).
+  --json writes { ok, result } to a file; the result is still printed (redirect stdout to keep the terminal quiet).
 env: FIGMA_FILE_KEY, ASIDE_LOCK, ASIDE_PAYLOAD_DIR, ASIDE_BIN`;
 
-const LOCK = process.env.ASIDE_LOCK || '/tmp/figma-deck-aside.lock';
-const HOLDER = 'figma-deck';
+const OWNER = `figma-run:${process.pid}`;
 // A directory the Aside repl can read with fs.readFile (Aside sandbox for account u0).
 const PAYLOAD_DIR = process.env.ASIDE_PAYLOAD_DIR || path.join(os.homedir(), '.aside/u/0/figma-deck');
 const ASIDE_BIN = process.env.ASIDE_BIN || 'aside';
@@ -35,19 +36,8 @@ const nodeId = opt('node');
 const waitSec = Number(opt('wait', '60'));
 const url = `https://www.figma.com/design/${fileKey}/x${nodeId ? `?node-id=${encodeURIComponent(nodeId.replace(':', '-'))}` : ''}`;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const readLock = () => { try { return JSON.parse(fs.readFileSync(LOCK, 'utf8')); } catch { return null; } };
-async function takeLock() {
-  for (let i = 0; i < 120; i++) {
-    const l = readLock();
-    const ageMin = l ? (Date.now() - Date.parse(l.at)) / 60000 : 99;
-    if (!l || ageMin >= 15 || l.holder === HOLDER) break;
-    if (i === 0) console.error(`waiting for Aside lock: ${l.holder} (${ageMin.toFixed(1)} min)`);
-    await sleep(10000);
-  }
-  fs.writeFileSync(LOCK, JSON.stringify({ holder: HOLDER, at: new Date().toISOString() }));
-}
-const dropLock = () => { const l = readLock(); if (l && l.holder === HOLDER) fs.rmSync(LOCK, { force: true }); };
+const jsonOut = opt('json');
+if (jsonOut) fs.mkdirSync(path.dirname(path.resolve(jsonOut)), { recursive: true });
 
 fs.mkdirSync(PAYLOAD_DIR, { recursive: true });
 const payload = {
@@ -78,18 +68,21 @@ console.log('__FIGMA_RESULT__' + JSON.stringify(out));`;
 
 let res;
 try {
-  await takeLock();
+  await takeLock(OWNER);
   res = spawnSync(ASIDE_BIN, ['repl', repl], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+} catch (e) {
+  console.error(e.message); process.exitCode = 1;
 } finally {
-  dropLock();
+  dropLock(OWNER);
   fs.rmSync(payloadPath, { force: true });
 }
+if (!res) process.exit(1);
 if (res.error) { console.error(`could not start "${ASIDE_BIN}": ${res.error.message} (install Aside or set ASIDE_BIN)`); process.exit(1); }
 const stdout = (res.stdout || '') + (res.stderr || '');
 const line = stdout.split('\n').find((l) => l.includes('__FIGMA_RESULT__'));
 if (!line) { console.error('no result in Aside output:\n' + stdout.slice(-1500)); process.exit(1); }
 const out = JSON.parse(line.slice(line.indexOf('__FIGMA_RESULT__') + '__FIGMA_RESULT__'.length));
-if (opt('json')) fs.writeFileSync(opt('json'), JSON.stringify(out, null, 2));
+if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(out, null, 2));
 if (!out.ok) { console.error('script error: ' + out.error); process.exit(1); }
 const r = out.result;
 console.log(typeof r === 'string' ? r : JSON.stringify(r, null, 2));

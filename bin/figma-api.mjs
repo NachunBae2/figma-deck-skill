@@ -5,19 +5,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const USAGE = `usage: node bin/figma-api.mjs <command>
   me                                   current user (token check)
-  projects [teamId]                    team projects (needs projects:read scope; default team = $FIGMA_TEAM_ID)
-  files <projectId>                    files in a project
+  projects [teamId]                    team projects (needs the projects:read scope; default team = $FIGMA_TEAM_ID)
+  files <projectId>                    files in a project (needs the projects:read scope)
   file <key> [--depth N]               file tree (default depth 2)
   nodes <key> <id,id>                  node JSON
   inventory <key> [--out dir]          pages -> top-level nodes -> slide frames, written to cache/inventory-<key>-<date>.md
   export <key> <id,id,...> [--format png|jpg|svg|pdf] [--scale N] [--out dir]
-                                       render nodes to files named NN-<node name>.<format> (default exports/export-<ts>/)
+                                       render nodes to files named NN-<node name>.<format> (default exports/export-<ts>/);
+                                       exits 1 if any node could not be exported
+  Rate limits: a 429 with Retry-After <= 60 s is retried (max 4 times); a longer one stops with an error.
 env: FIGMA_TOKEN, or FIGMA_KEYCHAIN_SERVICE [+ FIGMA_KEYCHAIN_ACCOUNT] (macOS keychain); FIGMA_TEAM_ID`;
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
 const [cmd, a1, a2] = argv.filter((a) => !a.startsWith('--') && !argv[argv.indexOf(a) - 1]?.startsWith('--'));
 const opt = (n, d = null) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
@@ -37,9 +40,13 @@ function token() {
   console.error('no Figma token: set FIGMA_TOKEN (Figma > Settings > Security > Personal access tokens) or FIGMA_KEYCHAIN_SERVICE');
   process.exit(2);
 }
-async function api(p) {
+async function api(p, tries = 0) {
   const r = await fetch(`https://api.figma.com/v1${p}`, { headers: { 'X-Figma-Token': token() } });
-  if (r.status === 429) { await new Promise((s) => setTimeout(s, 15000)); return api(p); }
+  if (r.status === 429) {
+    const waitSec = Number(r.headers.get('retry-after')) || 15;
+    if (waitSec > 60 || tries >= 4) throw new Error(`figma 429 ${p}: rate limited, retry after ${waitSec} s (PNG fallback without REST: scripts/export-png.js, see docs/troubleshooting.md)`);
+    await new Promise((s) => setTimeout(s, Math.max(waitSec, 15) * 1000)); return api(p, tries + 1);
+  }
   if (!r.ok) throw new Error(`figma ${r.status} ${p}: ${(await r.text()).slice(0, 200)}`);
   return r.json();
 }
@@ -80,17 +87,22 @@ else if (cmd === 'inventory') {
   const ids = a2.split(',').map((s) => s.trim()).filter(Boolean);
   const names = {};
   try { const n = await api(`/files/${a1}/nodes?ids=${encodeURIComponent(ids.join(','))}&depth=1`); for (const [id, v] of Object.entries(n.nodes)) names[id] = v?.document?.name || id; } catch {}
-  const written = [];
+  const written = []; const returned = new Set(); let failed = 0;
   for (let i = 0; i < ids.length; i += 20) {
     const chunk = ids.slice(i, i + 20);
     const r = await api(`/images/${a1}?ids=${encodeURIComponent(chunk.join(','))}&format=${format}${format === 'pdf' || format === 'svg' ? '' : `&scale=${scale}`}`);
     for (const [id, u] of Object.entries(r.images)) {
-      if (!u) { console.error(`export failed: ${id}`); continue; }
-      const buf = Buffer.from(await (await fetch(u)).arrayBuffer());
+      returned.add(id);
+      if (!u) { console.error(`export failed: ${id}`); failed++; continue; }
+      const dl = await fetch(u);
+      if (!dl.ok) { console.error(`download failed: ${id} (${dl.status})`); failed++; continue; }
+      const buf = Buffer.from(await dl.arrayBuffer());
       const idx = String(ids.indexOf(id) + 1).padStart(2, '0');
       const fp = path.join(dir, `${idx}-${safeName(names[id] || id)}.${format}`);
       fs.writeFileSync(fp, buf); written.push(fp);
     }
   }
+  for (const id of ids) if (!returned.has(id)) { console.error(`not rendered: ${id}`); failed++; }
   console.log(written.join('\n'));
+  if (failed) process.exitCode = 1;
 } else { console.error(USAGE); process.exit(2); }

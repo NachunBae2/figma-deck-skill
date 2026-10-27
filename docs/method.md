@@ -41,7 +41,7 @@ Format rules are measured by a machine; logic is questioned by an independent re
 
 ## 4. Running it with this repo
 - Format check: `node bin/figma-run.mjs scripts/lint-format.js --node <frame-id> --arg frame=<frame-id>` → violations per slide. Look at rendered thumbnails as well: `node bin/figma-api.mjs export … --format png --scale 0.5`.
-- Logic review: `bin/review-logic.sh <job> <key> <slide-id,…>` → the slide PNGs go to a **Codex session with no context**, which answers only the six questions → `jobs/<job>/logic-review.md`. The author records accept / reject / hold.
+- Logic review: `bin/review-logic.sh <job> <key> <slide-id,…>` → the slide PNGs go to a **Codex session with no context**, which answers only the six questions (plus the two chart questions of §5) → `jobs/<job>/logic-review.md`. The author records accept / reject / hold.
 - Banned words: before exporting a client-facing deck, run `scripts/scan-words.js` over all text and frame names on the page.
 - Errata: add every finding to `docs/errata.md`, one row each: "deck · finding · handling · new rule (machine-checkable?)".
 - Keep the planning outputs (goal & reader, title sentences, relationship sketch) in `jobs/<job>/PLAN.md`. Delegate the build (`bin/codex-task.sh`) only after PLAN.md is agreed.

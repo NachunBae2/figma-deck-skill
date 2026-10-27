@@ -41,7 +41,7 @@
 
 ## 4. 이 레포의 도구로 실행하기
 - 형식 검사: `node bin/figma-run.mjs scripts/lint-format.js --node <프레임id> --arg frame=<프레임id>` → 슬라이드별 위반 목록. 렌더 썸네일은 `node bin/figma-api.mjs export … --format png --scale 0.5` 로 같이 본다.
-- 논리 검토: `bin/review-logic.sh <job> <key> <슬라이드 id,…>` → 슬라이드 PNG 를 **문맥 없는 Codex 세션**에 주고 위 6개 질문으로 지적만 받는다 → `jobs/<job>/logic-review.md`. 채택·미채택·보류는 작성자가 적는다.
+- 논리 검토: `bin/review-logic.sh <job> <key> <슬라이드 id,…>` → 슬라이드 PNG 를 **문맥 없는 Codex 세션**에 주고 위 6개 질문(차트가 있으면 5장의 2개 질문 추가)으로 지적만 받는다 → `jobs/<job>/logic-review.md`. 채택·미채택·보류는 작성자가 적는다.
 - 금지어 검사: 고객에게 보여 줄 장표는 내보내기 전에 `scripts/scan-words.js` 로 페이지 전체 텍스트·프레임 이름을 검사한다.
 - 오답 사례: 지적받은 것은 `docs/errata.md` 에 "장표 · 지적 · 처리 · 새 규칙(기계화 가능?)" 한 줄씩 쌓는다.
 - 작성 단계 산출물(목표·독자, 제목 문장 목록, 관계 스케치)은 `jobs/<job>/PLAN.md` 에 남긴다. 구현 위임(`bin/codex-task.sh`)은 PLAN.md 가 확정된 뒤.

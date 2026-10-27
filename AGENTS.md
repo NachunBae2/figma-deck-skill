@@ -14,18 +14,20 @@ Follow `docs/method.md` (skill `deck-method`): goal & reader → one title sente
 - `node bin/figma-run.mjs scripts/lint-format.js --node <id> --arg frame=<id> --json jobs/<job>/lint.json` — format check. `--arg margin=0.05 --arg minpt=10` to tune.
 - `node bin/figma-run.mjs scripts/scan-words.js --arg page="<page>" --arg words="a,b,c"` — banned-word scan for client decks.
 - `bin/review-logic.sh <job> <key> <slide-id,...>` — logic review by a context-free Codex session → `jobs/<job>/logic-review.md`.
+- `node bin/figma-run.mjs scripts/export-png.js --arg ids=<ids> --json jobs/<job>/png.json > /dev/null` + `node bin/save-pngs.mjs jobs/<job>/png.json <dir>` — PNGs from inside the editor when the REST export is rate-limited.
 - `bin/check.sh` — offline syntax check of every tool and script.
 
 ## Never
 - Print, log or commit secrets (tokens). Don't call `security find-generic-password` yourself; leave it to `bin/figma-api.mjs`.
 - Call `aside repl` directly. Aside runs one call at a time and the shared lock (`$ASIDE_LOCK`) only works through `bin/figma-run.mjs` / `bin/aside-js.sh`.
 - Delete, move or overwrite existing frames in Figma. Work only on copies named `<job> NN · title` (no status words such as "WIP" or "draft"). Deletion is done by a person in Figma.
-- Send mail or post anything externally. Outputs are files in `exports/<job>/` only.
-- Edit files outside this repository.
+- Send mail or post anything externally. Deliverables go to `exports/<job>/`; working files to `jobs/<job>/`, `scripts/<job>/` and `cache/`; findings to `docs/errata.md`.
+- Edit files outside this repository. The only writes outside it are the tools' own temporary files (the Aside lock `$ASIDE_LOCK` and payloads in `$ASIDE_PAYLOAD_DIR`).
 - Invent numbers or promises. Use what the brief gives; mark the rest `[needs check]`.
 
 ## Conventions for contributors
-- File, command and option names: English kebab-case (`fit-headline.js`, `--format`). Functions and variables inside scripts: camelCase. One responsibility per file.
+- File, command and option names: English kebab-case (`fit-headline.js`, `--format`). Functions and variables inside JS and shell scripts: camelCase; environment variables and shell globals: UPPER_SNAKE_CASE. One responsibility per file.
+- Job names: lowercase letters, digits and dashes (`my-deck`); the tools refuse others.
 - Every file in `bin/` and `scripts/` starts with three header lines: `what:` / `usage:` / `env:`.
 - Shell scripts are bash (`#!/usr/bin/env bash`), node CLIs are ESM `.mjs` for Node 20+.
 - Shared scripts live in `scripts/`; per-job scripts go to `scripts/<job>/` (git-ignored).

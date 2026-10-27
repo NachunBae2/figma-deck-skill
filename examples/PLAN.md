@@ -8,6 +8,7 @@
 - Key message: a 3-month pilot costs USD 3,000 and gives them a measured buyer-inquiry funnel before any yearly contract.
 - Length: 6 slides (as requested; no extra cover or agenda slides).
 - Template: the team's "Proposal A4" frames on page `Templates`.
+- Agreed: purchasing lead (fictional), 2026-01-12.
 
 ## Ghost deck (one title sentence per slide)
 | # | Title sentence (conclusion) | One line of evidence | What the reader decides |
