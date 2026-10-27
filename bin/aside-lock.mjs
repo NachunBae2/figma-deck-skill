@@ -1,50 +1,50 @@
 #!/usr/bin/env node
-// what:  Shared Aside lock (one Aside call at a time): an atomically created lock directory with a unique owner per run; stale after 15 min; gives up after 20 min of waiting.
-// usage: import { takeLock, dropLock } from './aside-lock.mjs'   |   node bin/aside-lock.mjs take <owner> | drop <owner>
+// what:  Shared Aside lock (one Aside call at a time): an atomically created lock directory owned by one process; it is broken only when that process is gone; waiting gives up after 20 min.
+// usage: import { takeLock, dropLock } from './aside-lock.mjs'   |   node bin/aside-lock.mjs take <owner> [pid] | drop <owner>
 // env:   ASIDE_LOCK (lock directory, default /tmp/figma-deck-aside.lock)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const lockDir = process.env.ASIDE_LOCK || '/tmp/figma-deck-aside.lock';
-const ownerFile = path.join(lockDir, 'owner.json');
-const staleMinutes = 15;
+const breakDir = `${lockDir}.break`; // held for milliseconds while one process breaks a dead owner's lock
 const waitTries = 120; // x 10 s = 20 min
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const readOwner = (dir = lockDir) => { try { return JSON.parse(fs.readFileSync(path.join(dir, 'owner.json'), 'utf8')); } catch { return null; } };
+const ageMin = (p) => { try { return (Date.now() - fs.statSync(p).mtimeMs) / 60000; } catch { return null; } };
+const readOwner = () => { try { return JSON.parse(fs.readFileSync(path.join(lockDir, 'owner.json'), 'utf8')); } catch { return null; } };
+const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 
-// Age of the lock: from owner.json, or from the directory itself while the owner file is still being written.
-function lockState() {
-  let st; try { st = fs.statSync(lockDir); } catch { return null; }
-  const owner = readOwner();
-  const since = owner ? Date.parse(owner.at) : st.mtimeMs;
-  return { owner, stamp: owner ? owner.at : `mtime:${st.mtimeMs}`, ageMin: (Date.now() - since) / 60000 };
+// Dead = the owner process no longer exists, or the owner file never got written (creator died right after mkdir).
+function isDead() {
+  const o = readOwner();
+  if (o) return !alive(o.pid);
+  const age = ageMin(lockDir);
+  return age !== null && age > 1;
 }
 
-// Break a stale lock without removing a fresh one: move it aside atomically, then check it is the lock we judged stale.
-function breakStale(stamp) {
-  const moved = `${lockDir}.stale-${process.pid}-${Date.now()}`;
-  try { fs.renameSync(lockDir, moved); } catch { return; } // someone else broke or released it first
-  const owner = readOwner(moved);
-  const movedStamp = owner ? owner.at : `mtime:${fs.statSync(moved).mtimeMs}`;
-  if (movedStamp !== stamp) { try { fs.renameSync(moved, lockDir); return; } catch {} } // it was a new lock: put it back
-  fs.rmSync(moved, { recursive: true, force: true });
+// Only one breaker at a time (mkdir is atomic). While we hold it, a dead lock cannot change: its owner is gone,
+// nobody can create a new lock because the directory still exists, and other breakers wait.
+function breakIfDead() {
+  if ((ageMin(breakDir) ?? 0) > 1) fs.rmSync(breakDir, { recursive: true, force: true }); // breaker crashed
+  try { fs.mkdirSync(breakDir); } catch { return; }
+  try { if (isDead()) fs.rmSync(lockDir, { recursive: true, force: true }); }
+  finally { fs.rmSync(breakDir, { recursive: true, force: true }); }
 }
 
-export async function takeLock(owner) {
+export async function takeLock(owner, pid = process.pid) {
   for (let i = 0; i < waitTries; i++) {
     try {
       fs.mkdirSync(lockDir);
-      fs.writeFileSync(ownerFile, JSON.stringify({ holder: owner, at: new Date().toISOString() }));
+      fs.writeFileSync(path.join(lockDir, 'owner.json'), JSON.stringify({ holder: owner, pid, at: new Date().toISOString() }));
       return;
     } catch (e) { if (e.code !== 'EEXIST') throw e; }
-    const s = lockState();
-    if (!s) continue; // released in between
-    if (!(s.ageMin < staleMinutes)) { breakStale(s.stamp); continue; }
-    if (i === 0) console.error(`waiting for Aside lock: ${s.owner ? s.owner.holder : '(starting)'} (${s.ageMin.toFixed(1)} min)`);
+    if (isDead()) { breakIfDead(); continue; }
+    const o = readOwner();
+    if (i === 0) console.error(`waiting for Aside lock: ${o ? `${o.holder} (pid ${o.pid}, since ${o.at})` : '(starting)'}`);
     await sleep(10000);
   }
-  throw new Error(`Aside lock ${lockDir} still held after ${waitTries / 6} min`);
+  const o = readOwner();
+  throw new Error(`Aside lock ${lockDir} still held after ${waitTries / 6} min${o ? ` by ${o.holder} (pid ${o.pid})` : ''}`);
 }
 
 export function dropLock(owner) {
@@ -53,8 +53,9 @@ export function dropLock(owner) {
 }
 
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
-  const [cmd, owner] = process.argv.slice(2);
-  if (!owner || !['take', 'drop'].includes(cmd)) { console.error('usage: node bin/aside-lock.mjs take|drop <owner>'); process.exit(2); }
-  try { if (cmd === 'take') await takeLock(owner); else dropLock(owner); }
+  const [cmd, owner, pid] = process.argv.slice(2);
+  if (!owner || !['take', 'drop'].includes(cmd)) { console.error('usage: node bin/aside-lock.mjs take <owner> [pid] | drop <owner>'); process.exit(2); }
+  // From a shell, pass the shell's pid ($$): this node process exits right away, the shell keeps the lock.
+  try { if (cmd === 'take') await takeLock(owner, pid ? Number(pid) : process.ppid); else dropLock(owner); }
   catch (e) { console.error(e.message); process.exit(1); }
 }

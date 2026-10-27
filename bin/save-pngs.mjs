@@ -10,7 +10,10 @@ const USAGE = 'usage: node bin/save-pngs.mjs <png.json> <out-dir>';
 if (process.argv.includes('--help')) { console.log(USAGE); process.exit(0); }
 if (!src || !dir) { console.error(USAGE); process.exit(2); }
 const data = JSON.parse(fs.readFileSync(src, 'utf8'));
+if (data && data.ok === false) { console.error(`figma-run reported an error, nothing written: ${data.error}`); process.exit(1); }
 const pngs = data && typeof data === 'object' && 'result' in data ? data.result : data;
+const valid = pngs && typeof pngs === 'object' && !Array.isArray(pngs) && Object.values(pngs).every((v) => v === null || (v && typeof v.png === 'string'));
+if (!valid) { console.error(`not export-png.js output, nothing written: ${src}`); process.exit(1); }
 const safeName = (s) => s.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80);
 fs.mkdirSync(dir, { recursive: true });
 for (const f of fs.readdirSync(dir)) if (/^\d+-.*\.png$/.test(f)) fs.rmSync(path.join(dir, f)); // stale slides from an earlier run

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // what:  Open a Figma file in the Aside browser and run a Plugin API script (async function body; globals figma, assets, args; `return` a JSON value).
 // usage: node bin/figma-run.mjs <script.js> [--file <key>] [--node <node-id>] [--json <out.json>] [--asset name=path.png ...] [--arg key=value ...] [--wait <sec>]
-// env:   FIGMA_FILE_KEY (default --file), ASIDE_LOCK (default /tmp/figma-deck-aside.lock), ASIDE_PAYLOAD_DIR (default ~/.aside/u/0/figma-deck), ASIDE_BIN (default aside)
+// env:   FIGMA_FILE_KEY (default --file), ASIDE_LOCK (lock directory, default /tmp/figma-deck-aside.lock), ASIDE_PAYLOAD_DIR (default ~/.aside/u/0/figma-deck), ASIDE_BIN (default aside)
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,7 +11,8 @@ import { takeLock, dropLock } from './aside-lock.mjs';
 const USAGE = `usage: node bin/figma-run.mjs <script.js> [--file key] [--node id] [--json out.json] [--asset name=path ...] [--arg key=value ...] [--wait sec]
   The script is the body of an async function with globals figma, assets (name -> Uint8Array), args (name -> string).
   Its return value is printed as JSON (and written to --json). One Aside call is allowed at a time: a shared lock
-  file serialises runs (waits up to 20 min for another run; locks older than 15 min are considered stale).
+  directory serialises runs (waits up to 20 min; a lock whose owner process is gone is broken automatically).
+  Opening the tab, --wait, the script and its save delay all share Aside's 120 s repl budget.
   --json writes { ok, result } to a file; the result is still printed (redirect stdout to keep the terminal quiet).
 env: FIGMA_FILE_KEY, ASIDE_LOCK, ASIDE_PAYLOAD_DIR, ASIDE_BIN`;
 

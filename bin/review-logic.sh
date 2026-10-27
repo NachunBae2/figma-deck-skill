@@ -11,7 +11,8 @@ OUT="$R/jobs/$JOB"; PNG="$OUT/review-png"; mkdir -p "$PNG"
 # Default: re-export so stale PNGs from earlier runs never reach the reviewer.
 # NO_EXPORT=1: when the REST export is rate-limited, fill review-png/ yourself first:
 #   node bin/figma-run.mjs scripts/export-png.js --arg ids=<ids> --json jobs/<job>/png.json > /dev/null && node bin/save-pngs.mjs jobs/<job>/png.json jobs/<job>/review-png
-if [ -z "$NO_EXPORT" ]; then
+case "${NO_EXPORT:-}" in ""|0|1) ;; *) echo "NO_EXPORT must be 1 (or unset)"; exit 2;; esac
+if [ "${NO_EXPORT:-}" != 1 ]; then
   rm -f "$PNG"/*.png
   node "$R/bin/figma-api.mjs" export "$KEY" "$IDS" --format png --scale 1 --out "$PNG" >/dev/null
 fi

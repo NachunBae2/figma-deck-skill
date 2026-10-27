@@ -12,7 +12,7 @@ Toolkit location: the clone of this repository, referred to as `$FIGMA_DECK_HOME
 ## How it works
 - The Figma **web editor exposes the Plugin API global `figma`** to page scripts. `bin/figma-run.mjs` opens the file in the Aside browser and runs your script there, so reading, cloning, editing text, replacing images and `exportAsync` all work without installing a Figma plugin or MCP server.
 - The REST token (`FIGMA_TOKEN`, read scopes) is for **listing and exporting** only. All writes go through the Plugin API.
-- Aside allows one call at a time. figma-run.mjs and aside-js.sh share a lock file (`$ASIDE_LOCK`) and wait for each other (up to 20 min). Keep runs short.
+- Aside allows one call at a time. figma-run.mjs and aside-js.sh share a lock directory (`$ASIDE_LOCK`) and wait for each other (up to 20 min; a lock whose owner process is gone is broken automatically). Keep runs short.
 
 ## Tools
 | command | purpose |

@@ -2,8 +2,8 @@
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `no result in Aside output` / `figma editor not ready in 60s` | Aside not logged in to Figma, slow load, or the file key is wrong | Open the file once in Aside and log in; raise `--wait 120`; check `FIGMA_FILE_KEY` |
-| `waiting for Aside lock: …` / `still held after 20 min` | Another run holds the shared lock (one Aside call at a time) | Wait; a lock older than 15 min is treated as stale. Remove the `$ASIDE_LOCK` folder (`rm -r`) only if you are sure no run is active |
+| `no result in Aside output` / `figma editor not ready in 60s` | Aside not logged in to Figma, slow load, or the file key is wrong | Open the file once in Aside and log in; check `FIGMA_FILE_KEY`; for a slow file try `--wait 80` — opening, waiting, the script and its save delay share one 120 s Aside call, so keep heavy scripts small or split them |
+| `waiting for Aside lock: …` / `still held after 20 min` | Another run holds the shared lock (one Aside call at a time); the message shows its pid | Wait. A lock whose owner process has exited is broken automatically; if the owner pid is alive but hung, stop that process |
 | Last edit or new image missing after a run | The tab closed before Figma saved | End write scripts with a 8–15 s wait (see plugin-api-tips.md) and re-read in a second run |
 | `RangeError: Maximum call stack size exceeded` with big inputs | Large base64 passed inline | Use `--asset name=path` (figma-run.mjs writes a payload file the repl reads) |
 | `figma 403 /teams/<id>/projects` | The token lacks the `projects:read` scope | Re-issue the token with that scope, or take the file key from the file URL (`/design/<key>/`) |
